@@ -1,14 +1,17 @@
 <?php
 session_start();
-
 include 'products_data.php';
+require_once 'product_image.php';
 
+// FIND PRODUCT AND ITS INDEX
 $productName = $_GET['name'] ?? '';
 $product = null;
+$productIndex = 0;
 
-foreach ($products as $item) {
+foreach ($products as $index => $item) {
     if ($item['name'] === $productName) {
         $product = $item;
+        $productIndex = $index;
         break;
     }
 }
@@ -17,7 +20,6 @@ if ($product === null) {
     die("Product not found.");
 }
 
-
 // ADD TO CART / BUY NOW
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -25,11 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['cart'] = [];
     }
 
-    $quantity = (int)($_POST['quantity'] ?? 1);
-
-    if ($quantity < 1) {
-        $quantity = 1;
-    }
+    $quantity = max(1, (int)($_POST['quantity'] ?? 1));
 
     $_SESSION['cart'][] = [
         'name' => $product['name'],
@@ -39,258 +37,287 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action = $_POST['action'] ?? 'cart';
 
-    // Buy Now → Checkout
     if ($action === 'buy') {
         header("Location: checkout.php");
         exit;
     }
 
-    // Add to Cart → Cart
     header("Location: cart.php");
     exit;
 }
+
+// GET CORRECT PRODUCT IMAGE
+$image = getProductImage(
+    $product['category'],
+    $productIndex,
+    $product['name']
+);
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 
-    <title><?= htmlspecialchars($product['name']) ?> - ShopKart</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <style>
+<title><?= htmlspecialchars($product['name']) ?> - ShopKart</title>
 
-        * {
-            box-sizing: border-box;
-        }
+<style>
 
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f1f3f6;
-        }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
 
-        .navbar {
-            background: #2874f0;
-            color: white;
-            padding: 14px 6%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+body {
+    background: #f1f3f6;
+    color: #222;
+}
 
-        .logo {
-            font-size: 25px;
-            font-weight: bold;
-        }
+.navbar {
+    background: #172337;
+    color: white;
+    padding: 18px 5%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
 
-        .nav-links a {
-            color: white;
-            text-decoration: none;
-            margin-left: 25px;
-            font-weight: bold;
-        }
+.logo {
+    font-size: 25px;
+    font-weight: bold;
+    color: #ffcc00;
+}
 
-        .container {
-            width: 90%;
-            max-width: 1200px;
-            margin: 25px auto;
-        }
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    margin-left: 20px;
+    font-size: 15px;
+}
 
-        .product-box {
-            background: white;
-            display: flex;
-            gap: 40px;
-            padding: 30px;
-            border-radius: 5px;
-        }
+.nav-links a:hover {
+    color: #ffcc00;
+}
 
-        .product-left {
-            width: 42%;
-            text-align: center;
-        }
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 30px auto;
+}
 
-        .product-image {
-            height: 350px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #ddd;
-            font-size: 150px;
-            background: white;
-        }
+.product-box {
+    background: white;
+    display: flex;
+    gap: 40px;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
 
-        .product-right {
-            width: 58%;
-        }
+.product-left {
+    width: 45%;
+}
 
-        .product-name {
-            font-size: 27px;
-            margin-bottom: 15px;
-            color: #212121;
-        }
+.product-image {
+    height: 420px;
+    background: #f8f8f8;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
 
-        .rating {
-            display: inline-block;
-            background: #388e3c;
-            color: white;
-            padding: 6px 10px;
-            border-radius: 4px;
-            font-weight: bold;
-            margin-bottom: 18px;
-        }
+.product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 15px;
+}
 
-        .category {
-            color: #777;
-            margin-bottom: 20px;
-        }
+.image-fallback {
+    display: none;
+    font-size: 130px;
+}
 
-        .price {
-            font-size: 32px;
-            font-weight: bold;
-            margin: 10px 0;
-        }
+.product-right {
+    width: 55%;
+}
 
-        .old-price {
-            color: #878787;
-            text-decoration: line-through;
-            margin-left: 12px;
-            font-size: 18px;
-        }
+.product-name {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
 
-        .offer {
-            color: #388e3c;
-            font-weight: bold;
-            margin: 15px 0;
-        }
+.category {
+    color: #777;
+    margin-bottom: 20px;
+}
 
-        .description {
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
-            line-height: 1.7;
-        }
+.price {
+    font-size: 32px;
+    font-weight: bold;
+    color: #0b8f45;
+    margin: 15px 0;
+}
 
-        .quantity {
-            margin: 20px 0;
-        }
+.offer {
+    color: #0b8f45;
+    font-weight: bold;
+    margin: 15px 0;
+}
 
-        .quantity input {
-            width: 70px;
-            padding: 10px;
-            font-size: 16px;
-            text-align: center;
-        }
+.description {
+    border-top: 1px solid #ddd;
+    padding-top: 20px;
+    margin-top: 20px;
+    line-height: 1.8;
+}
 
-        .buttons {
-            display: flex;
-            gap: 15px;
-        }
+.quantity {
+    margin: 25px 0;
+}
 
-        .add-cart,
-        .buy-now {
-            border: none;
-            padding: 16px 35px;
-            font-size: 17px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 3px;
-            color: white;
-        }
+.quantity input {
+    width: 75px;
+    padding: 10px;
+    margin-left: 10px;
+    font-size: 16px;
+}
 
-        .add-cart {
-            background: #ff9f00;
-        }
+.buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
 
-        .buy-now {
-            background: #fb641b;
-        }
+.add-cart,
+.buy-now {
+    border: none;
+    padding: 16px 25px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 5px;
+    color: white;
+}
 
-        .details-box {
-            background: white;
-            margin-top: 20px;
-            padding: 25px;
-        }
+.add-cart {
+    background: #ff9f00;
+}
 
-        .details-box h2 {
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 15px;
-        }
+.buy-now {
+    background: #fb641b;
+}
 
-        .details-box p {
-            line-height: 1.7;
-        }
+.add-cart:hover {
+    background: #fb8c00;
+}
 
-        @media (max-width: 768px) {
+.buy-now:hover {
+    background: #e85b16;
+}
 
-            .product-box {
-                flex-direction: column;
-            }
+.details-box {
+    background: white;
+    margin-top: 22px;
+    padding: 25px;
+    border-radius: 8px;
+}
 
-            .product-left,
-            .product-right {
-                width: 100%;
-            }
+.details-box h2 {
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
 
-            .product-image {
-                height: 300px;
-            }
+.details-box p {
+    line-height: 2;
+}
 
-        }
+.back-link {
+    display: inline-block;
+    margin-bottom: 15px;
+    color: #172337;
+    text-decoration: none;
+    font-weight: bold;
+}
 
-    </style>
+@media(max-width: 768px) {
 
+    .product-box {
+        flex-direction: column;
+        padding: 20px;
+    }
+
+    .product-left,
+    .product-right {
+        width: 100%;
+    }
+
+    .product-image {
+        height: 300px;
+    }
+
+    .product-name {
+        font-size: 23px;
+    }
+
+    .price {
+        font-size: 27px;
+    }
+}
+
+</style>
 </head>
 
 <body>
 
-
-<!-- NAVBAR -->
-
 <div class="navbar">
 
-    <div class="logo">
-        ShopKart
-    </div>
+    <div class="logo">🛒 ShopKart</div>
 
     <div class="nav-links">
         <a href="index.php">Home</a>
         <a href="products.php">Products</a>
-        <a href="cart.php">🛒 Cart</a>
+        <a href="cart.php">Cart 🛒</a>
     </div>
 
 </div>
 
-
-<!-- PRODUCT -->
-
 <div class="container">
 
+    <a href="products.php" class="back-link">
+        ← Back to Products
+    </a>
+
     <div class="product-box">
-
-
-        <!-- LEFT SIDE -->
 
         <div class="product-left">
 
             <div class="product-image">
 
-    <?php if ($product['name'] === 'Vivo T4'): ?>
+                <img
+                    src="<?= htmlspecialchars($image) ?>"
+                    alt="<?= htmlspecialchars($product['name']) ?>"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+                >
 
-        <img src="images/mobile1.jpg" alt="Product Image" style="width: 300px; height: 300px; object-fit: contain;">
+                <span class="image-fallback">
+                    <?= htmlspecialchars($product['icon'] ?? '🛍️') ?>
+                </span>
 
-    <?php else: ?>
-
-        <span style="font-size: 120px;">
-            <?= htmlspecialchars($product['icon']) ?>
-        </span>
-
-    <?php endif; ?>
-
-</div>
+            </div>
 
         </div>
-
-
-        <!-- RIGHT SIDE -->
 
         <div class="product-right">
 
@@ -298,48 +325,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?= htmlspecialchars($product['name']) ?>
             </div>
 
-
-            <div class="rating">
-                ⭐ 4.3
-            </div>
-
-
             <div class="category">
                 Category:
                 <?= htmlspecialchars($product['category']) ?>
             </div>
 
-
             <div class="price">
-
                 ₹<?= number_format($product['price']) ?>
-
-                <span class="old-price">
-                    ₹<?= number_format($product['price'] + 1000) ?>
-                </span>
-
             </div>
-
 
             <div class="offer">
-                ✓ Special Price available
+                ✓ Available on ShopKart
             </div>
-
 
             <div class="description">
 
                 <h3>Product Description</h3>
 
                 <p>
-                    This is a quality product available on ShopKart.
-                    You can add this product to your cart or use
-                    Buy Now to proceed directly to checkout.
+                    Explore this product on ShopKart.
+                    Check the product category and price,
+                    select your required quantity, and add
+                    it to your shopping cart.
                 </p>
 
             </div>
-
-
-            <!-- QUANTITY + BUTTONS -->
 
             <form method="POST">
 
@@ -356,7 +366,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 </div>
 
-
                 <div class="buttons">
 
                     <button
@@ -366,7 +375,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         class="add-cart">
                         🛒 ADD TO CART
                     </button>
-
 
                     <button
                         type="submit"
@@ -383,9 +391,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
     </div>
-
-
-    <!-- PRODUCT DETAILS -->
 
     <div class="details-box">
 
@@ -404,16 +409,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <p>
             <b>Price:</b>
             ₹<?= number_format($product['price']) ?>
-        </p>
-
-        <p>
-            <b>Availability:</b>
-            In Stock
-        </p>
-
-        <p>
-            <b>Delivery:</b>
-            Available across India
         </p>
 
     </div>

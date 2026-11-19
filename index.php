@@ -1,820 +1,985 @@
 <?php
 session_start();
-include 'products_data.php';
+require_once 'products_data.php';
+require_once 'product_image.php';
 
 if (!isset($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Original product indexes
+$productIndexes = [];
+foreach ($products as $index => $item) {
+    $productIndexes[$item['name']] = $index;
+}
 
-    $name = $_POST['name'] ?? '';
-    $price = $_POST['price'] ?? '';
+// Add to Cart
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
+    $productName = trim($_POST['product_name'] ?? '');
 
-    if ($name !== '' && $price !== '') {
-        $_SESSION['cart'][] = [
-            'name' => $name,
-            'price' => $price,
-            'quantity' => 1
-        ];
+    foreach ($products as $product) {
+        if ($product['name'] === $productName) {
+            $_SESSION['cart'][] = [
+                'name' => $product['name'],
+                'price' => $product['price'],
+                'quantity' => 1
+            ];
+            break;
+        }
     }
 
-    header("Location: cart.php");
+    header('Location: index.php?q=' . urlencode($_GET['q'] ?? '') . '&added=1');
     exit;
 }
 
-/* All Products */
-
-$allProducts = [
-
-    ['name'=>'Smartphone', 'price'=>19999, 'icon'=>'📱'],
-    ['name'=>'Premium Phone', 'price'=>29999, 'icon'=>'📱'],
-    ['name'=>'Budget Phone', 'price'=>12999, 'icon'=>'📱'],
-
-    ['name'=>'Gaming Laptop', 'price'=>74999, 'icon'=>'💻'],
-    ['name'=>'Student Laptop', 'price'=>45999, 'icon'=>'💻'],
-    ['name'=>'Business Laptop', 'price'=>59999, 'icon'=>'💻'],
-
-    ['name'=>'Wireless Headphones', 'price'=>1999, 'icon'=>'🎧'],
-    ['name'=>'Bluetooth Speaker', 'price'=>2499, 'icon'=>'🔊'],
-    ['name'=>'Wireless Earbuds', 'price'=>1499, 'icon'=>'🎵'],
-
-    ['name'=>'Smart Watch Pro', 'price'=>3999, 'icon'=>'⌚'],
-    ['name'=>'Fitness Watch', 'price'=>2999, 'icon'=>'⌚'],
-    ['name'=>'Classic Smart Watch', 'price'=>2499, 'icon'=>'⌚'],
-
-    ['name'=>'Men T-Shirt', 'price'=>799, 'icon'=>'👕'],
-    ['name'=>'Men Shirt', 'price'=>1299, 'icon'=>'👔'],
-    ['name'=>'Men Jeans', 'price'=>1799, 'icon'=>'👖'],
-
-    ['name'=>'Women Dress', 'price'=>1499, 'icon'=>'👗'],
-    ['name'=>'Women Top', 'price'=>899, 'icon'=>'👚'],
-    ['name'=>'Women Saree', 'price'=>2499, 'icon'=>'🥻'],
-
-    ['name'=>'Running Shoes', 'price'=>1999, 'icon'=>'👟'],
-    ['name'=>'Sports Shoes', 'price'=>2499, 'icon'=>'👟'],
-    ['name'=>'Casual Shoes', 'price'=>1799, 'icon'=>'👞'],
-
-    ['name'=>'College Backpack', 'price'=>999, 'icon'=>'🎒'],
-    ['name'=>'Travel Bag', 'price'=>1799, 'icon'=>'👜'],
-    ['name'=>'Laptop Bag', 'price'=>1299, 'icon'=>'💼'],
-
-    ['name'=>'Face Wash', 'price'=>299, 'icon'=>'🧴'],
-    ['name'=>'Skin Care Kit', 'price'=>799, 'icon'=>'💄'],
-    ['name'=>'Beauty Kit', 'price'=>999, 'icon'=>'💅'],
-
-    ['name'=>'Mixer Grinder', 'price'=>2499, 'icon'=>'🍳'],
-    ['name'=>'Electric Kettle', 'price'=>1299, 'icon'=>'☕'],
-    ['name'=>'Cookware Set', 'price'=>1999, 'icon'=>'🍲'],
-
-    ['name'=>'Remote Car', 'price'=>899, 'icon'=>'🚗'],
-    ['name'=>'Building Blocks', 'price'=>699, 'icon'=>'🧱'],
-    ['name'=>'Board Game', 'price'=>599, 'icon'=>'🎲'],
-
-    ['name'=>'Programming Book', 'price'=>599, 'icon'=>'📚'],
-    ['name'=>'Notebook Set', 'price'=>299, 'icon'=>'📒'],
-    ['name'=>'Pen Set', 'price'=>199, 'icon'=>'🖊️'],
-
-    ['name'=>'Cricket Bat', 'price'=>1999, 'icon'=>'🏏'],
-    ['name'=>'Football', 'price'=>799, 'icon'=>'⚽'],
-    ['name'=>'Yoga Mat', 'price'=>599, 'icon'=>'🧘'],
-
-    ['name'=>'Mobile Charger', 'price'=>799, 'icon'=>'🔌'],
-    ['name'=>'Power Bank', 'price'=>1499, 'icon'=>'🔋'],
-    ['name'=>'USB Cable', 'price'=>299, 'icon'=>'🔌'],
-
-    ['name'=>'Gaming Mouse', 'price'=>1299, 'icon'=>'🖱️'],
-    ['name'=>'Gaming Keyboard', 'price'=>2499, 'icon'=>'⌨️'],
-    ['name'=>'Game Controller', 'price'=>1999, 'icon'=>'🎮'],
-
-    ['name'=>'Car Phone Holder', 'price'=>499, 'icon'=>'🚗'],
-    ['name'=>'Car Cleaning Kit', 'price'=>799, 'icon'=>'🧽'],
-    ['name'=>'Car Charger', 'price'=>699, 'icon'=>'🔌']
-];
-
-/* Search */
-
-$search = isset($_GET['q']) ? trim($_GET['q']) : '';
+// Search
+$search = trim($_GET['q'] ?? '');
 $searchResults = [];
 
-if ($search != '') {
-
-    foreach ($allProducts as $product) {
-
-        if (stripos($product['name'], $search) !== false) {
+if ($search !== '') {
+    foreach ($products as $product) {
+        if (
+            stripos($product['name'], $search) !== false ||
+            stripos($product['category'], $search) !== false
+        ) {
             $searchResults[] = $product;
         }
     }
 }
 
+// Cart count
+$cartCount = 0;
+foreach ($_SESSION['cart'] as $item) {
+    $cartCount += (int)($item['quantity'] ?? 1);
+}
+
+// Categories
+$categories = [
+    ['Mobiles', '📱'],
+    ['Laptops', '💻'],
+    ['Audio', '🎧'],
+    ['Smart Watches', '⌚'],
+    ['Mens Fashion', '👔'],
+    ['Womens Fashion', '👗'],
+    ['Shoes', '👟'],
+    ['Bags', '🎒'],
+    ['Beauty', '💄'],
+    ['Home Kitchen', '🏠'],
+    ['Toys Games', '🧸'],
+    ['Books Stationery', '📚'],
+    ['Sports Fitness', '🏋️'],
+    ['Accessories', '🔌'],
+    ['Gaming', '🎮'],
+    ['Automotive', '🚗']
+];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta charset="UTF-8">
+<title>ShopKart | Online Shopping Store</title>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
 
-    <title>ShopKart - Online Shopping</title>
+body {
+    background: #f3f6fb;
+    color: #202b3c;
+}
 
-    <style>
+a {
+    text-decoration: none;
+    color: inherit;
+}
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: Arial, sans-serif;
-        }
+/* HEADER */
+.header {
+    background: #142b4a;
+    color: white;
+    padding: 17px 6%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
 
-        body {
-            background-color: #f5f5f5;
-        }
+.logo {
+    font-size: 29px;
+    font-weight: bold;
+    white-space: nowrap;
+}
 
-        /* Navbar */
+.logo span {
+    color: #ffad32;
+}
 
-        .navbar {
-            background-color: #222;
-            color: white;
-            padding: 18px 50px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+.search-box {
+    display: flex;
+    flex: 1;
+    max-width: 600px;
+    background: white;
+    border-radius: 7px;
+    overflow: hidden;
+}
 
-        .logo {
-            font-size: 28px;
-            font-weight: bold;
-        }
+.search-box input {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    outline: none;
+    font-size: 14px;
+}
 
-        .nav-links a {
-            color: white;
-            text-decoration: none;
-            margin-left: 25px;
-        }
+.search-box button {
+    background: #ffad32;
+    color: #142b4a;
+    border: none;
+    padding: 0 22px;
+    font-weight: bold;
+    cursor: pointer;
+}
 
-        .nav-links a:hover {
-            color: orange;
-        }
+.header-links {
+    display: flex;
+    align-items: center;
+    gap: 17px;
+    font-size: 14px;
+    font-weight: bold;
+}
 
-        /* Search */
+.header-links a:hover {
+    color: #ffad32;
+}
 
-        .search-box {
-            background: white;
-            padding: 25px;
-            text-align: center;
-        }
+.cart-link {
+    background: #ffad32;
+    color: #142b4a !important;
+    padding: 11px 15px;
+    border-radius: 6px;
+}
 
-        .search-box form {
-            display: flex;
-            justify-content: center;
-            max-width: 650px;
-            margin: auto;
-        }
+/* NAVIGATION */
+.navbar {
+    background: white;
+    display: flex;
+    justify-content: center;
+    gap: 35px;
+    padding: 16px;
+    box-shadow: 0 3px 9px rgba(0,0,0,0.06);
+}
 
-        .search-box input {
-            width: 80%;
-            padding: 13px;
-            border: 1px solid #ccc;
-            border-radius: 7px 0 0 7px;
-            font-size: 16px;
-            outline: none;
-        }
+.navbar a {
+    font-size: 14px;
+    font-weight: bold;
+}
 
-        .search-box button {
-            padding: 13px 20px;
-            border: none;
-            background: #1d3557;
-            color: white;
-            border-radius: 0 7px 7px 0;
-            cursor: pointer;
-            font-size: 16px;
-        }
+.navbar a:hover {
+    color: #e99113;
+}
 
-        .search-box button:hover {
-            background: #0b6e4f;
-        }
+/* CATEGORY STRIP */
+.category-nav {
+    background: white;
+    margin-top: 12px;
+    padding: 17px 5%;
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+    overflow-x: auto;
+    white-space: nowrap;
+}
 
-        /* Hero */
+.category-nav a {
+    font-size: 13px;
+    font-weight: bold;
+    color: #34445b;
+}
 
-        .hero {
-            text-align: center;
-            padding: 70px 20px;
-            background: white;
-        }
+.category-nav a:hover {
+    color: #ed941b;
+}
 
-        .hero h1 {
-            font-size: 45px;
-            margin-bottom: 15px;
-        }
+/* NOTICE */
+.notice {
+    max-width: 1100px;
+    margin: 15px auto;
+    padding: 13px;
+    background: #e1f5e8;
+    color: #16733d;
+    text-align: center;
+    border-radius: 7px;
+}
 
-        .hero p {
-            font-size: 20px;
-            color: #555;
-            margin-bottom: 25px;
-        }
+/* HERO */
+.hero {
+    margin: 25px 5%;
+    min-height: 390px;
+    padding: 55px 7%;
+    border-radius: 17px;
+    background: linear-gradient(120deg, #102745, #28558a);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    overflow: hidden;
+    position: relative;
+}
 
-        .shop-btn {
-            background-color: orange;
-            color: white;
-            padding: 12px 25px;
-            text-decoration: none;
-            border-radius: 5px;
-        }
+.hero-content {
+    max-width: 620px;
+    position: relative;
+    z-index: 1;
+}
 
-        /* Sections */
+.hero-tag {
+    display: inline-block;
+    background: #ffad32;
+    color: #142b4a;
+    padding: 9px 17px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 22px;
+}
 
-        .section {
-            padding: 40px 50px;
-        }
+.hero h1 {
+    font-size: clamp(34px, 5vw, 55px);
+    line-height: 1.15;
+    margin-bottom: 17px;
+}
 
-        .section h2 {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+.hero h1 span {
+    color: #ffbd55;
+}
 
-        /* Categories */
+.hero p {
+    color: #dce8f6;
+    font-size: 16px;
+    line-height: 1.8;
+    margin-bottom: 28px;
+}
 
-        .categories {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
+.hero-buttons {
+    display: flex;
+    gap: 13px;
+    flex-wrap: wrap;
+}
 
-        .category {
-            background: white;
-            padding: 25px 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px #ccc;
-            text-decoration: none;
-            color: #222;
-            transition: 0.3s;
-        }
+.shop-btn {
+    display: inline-block;
+    background: #ffad32;
+    color: #142b4a;
+    padding: 14px 23px;
+    border-radius: 7px;
+    font-weight: bold;
+}
 
-        .category:hover {
-            transform: translateY(-5px);
-            background: #f0f4f8;
-        }
+.shop-btn:hover {
+    background: white;
+}
 
-        /* Products */
+.category-btn {
+    display: inline-block;
+    border: 1px solid #ffffff;
+    color: white;
+    padding: 14px 23px;
+    border-radius: 7px;
+    font-weight: bold;
+}
 
-        .products {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 25px;
-            padding: 20px 0;
-        }
+.hero-art {
+    font-size: clamp(100px, 17vw, 190px);
+    filter: drop-shadow(0 12px 12px rgba(0,0,0,0.2));
+}
 
-        .product {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.12);
-            transition: 0.3s;
-        }
+/* FEATURES */
+.features {
+    margin: 25px 5%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
 
-        .product:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.18);
-        }
+.feature {
+    background: white;
+    border-radius: 12px;
+    padding: 23px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+}
 
-        .product-img {
-            height: 150px;
-            background: #f5f7fa;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 65px;
-            margin-bottom: 15px;
-        }
+.feature-icon {
+    width: 55px;
+    height: 55px;
+    border-radius: 12px;
+    background: #fff3df;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 29px;
+    flex-shrink: 0;
+}
 
-        .product h3 {
-            font-size: 21px;
-            margin: 10px 0;
-        }
+.feature h3 {
+    font-size: 15px;
+    margin-bottom: 7px;
+}
 
-        .price {
-            color: #159447;
-            font-size: 20px;
-            font-weight: bold;
-            margin: 10px 0 15px;
-        }
+.feature p {
+    color: #788397;
+    font-size: 12px;
+    line-height: 1.5;
+}
 
-        .cart-btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            background: #1d3557;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            transition: 0.3s;
-        }
+/* CATEGORY SECTION */
+.section {
+    margin: 28px 5%;
+    background: white;
+    padding: 28px;
+    border-radius: 13px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+}
 
-        .cart-btn:hover {
-            background: #0b6e4f;
-            transform: scale(1.03);
-        }
+.section-heading {
+    margin-bottom: 24px;
+}
 
-        /* No Search Result */
+.section-heading h2 {
+    font-size: 25px;
+    color: #142b4a;
+}
 
-        .no-result {
-            text-align: center;
-            padding: 30px;
-            font-size: 20px;
-            color: #555;
-        }
+.section-heading p {
+    color: #8993a2;
+    font-size: 13px;
+    margin-top: 7px;
+}
 
-        .clear-search {
-            display: block;
-            width: fit-content;
-            margin: 10px auto 25px;
-            padding: 10px 20px;
-            background: #1d3557;
-            color: white;
-            text-decoration: none;
-            border-radius: 7px;
-        }
+.categories {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 17px;
+}
 
-        /* Footer */
+.category-card {
+    background: #f7f9fc;
+    border: 1px solid #edf0f5;
+    padding: 23px 10px;
+    border-radius: 11px;
+    text-align: center;
+    transition: 0.25s;
+}
 
-        footer {
-            background-color: #222;
-            color: white;
-            text-align: center;
-            padding: 20px;
-            margin-top: 30px;
-        }
+.category-card:hover {
+    background: #fff5e5;
+    border-color: #ffad32;
+    transform: translateY(-5px);
+    box-shadow: 0 7px 17px rgba(0,0,0,0.07);
+}
 
-        /* Mobile */
+.category-icon {
+    display: block;
+    font-size: 37px;
+    margin-bottom: 12px;
+}
 
-        @media (max-width: 900px) {
+.category-name {
+    font-size: 13px;
+    font-weight: bold;
+    color: #263a56;
+}
 
-            .products {
-                grid-template-columns: repeat(2, 1fr);
-            }
+/* PROMO BANNER */
+.promo {
+    margin: 28px 5%;
+    padding: 30px 5%;
+    border-radius: 13px;
+    background: linear-gradient(100deg, #fff0d9, #fff9ef);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
 
-            .navbar {
-                padding: 18px 20px;
-            }
+.promo h2 {
+    color: #142b4a;
+    font-size: 23px;
+    margin-bottom: 9px;
+}
 
-        }
+.promo p {
+    color: #68768a;
+    font-size: 14px;
+    line-height: 1.6;
+}
 
-        @media (max-width: 600px) {
+.promo-icon {
+    font-size: 65px;
+}
 
-            .products {
-                grid-template-columns: 1fr;
-            }
+/* SEARCH RESULTS */
+.search-section {
+    margin: 25px 5%;
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+}
 
-            .hero h1 {
-                font-size: 32px;
-            }
+.search-heading {
+    margin-bottom: 22px;
+}
 
-            .section {
-                padding: 30px 20px;
-            }
+.search-heading h2 {
+    color: #142b4a;
+    font-size: 24px;
+}
 
-            .search-box form {
-                width: 100%;
-            }
+.search-heading p {
+    color: #777;
+    margin-top: 8px;
+    font-size: 14px;
+}
 
-        }
+.clear-search {
+    display: inline-block;
+    color: #2874f0;
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 10px;
+}
 
-    </style>
+.products {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+}
 
+.product {
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 13px;
+    text-align: center;
+    transition: 0.2s;
+}
+
+.product:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.09);
+}
+
+.product-img {
+    height: 165px;
+    background: #f5f7fa;
+    border-radius: 7px;
+    margin-bottom: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.product-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.product-img span {
+    font-size: 60px;
+}
+
+.product-category {
+    color: #888;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.product h3 {
+    font-size: 14px;
+    min-height: 35px;
+    margin: 9px 0;
+}
+
+.price {
+    color: #16834c;
+    font-size: 19px;
+    font-weight: bold;
+    margin: 12px 0;
+}
+
+.cart-btn {
+    width: 100%;
+    border: none;
+    background: #142b4a;
+    color: white;
+    padding: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.cart-btn:hover {
+    background: #315b91;
+}
+
+.no-result {
+    text-align: center;
+    padding: 55px 15px;
+    color: #788397;
+}
+
+.no-result span {
+    display: block;
+    font-size: 55px;
+    margin-bottom: 15px;
+}
+
+/* FOOTER */
+footer {
+    background: #14243d;
+    color: white;
+    padding: 40px 6% 20px;
+    margin-top: 40px;
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 35px;
+}
+
+footer h3 {
+    color: #ffad32;
+    margin-bottom: 15px;
+}
+
+footer p,
+footer a {
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 2;
+}
+
+footer a:hover {
+    color: white;
+}
+
+.copyright {
+    text-align: center;
+    border-top: 1px solid #45546a;
+    padding-top: 18px;
+    margin-top: 28px;
+}
+
+/* MOBILE */
+@media(max-width: 850px) {
+    .header {
+        justify-content: center;
+    }
+
+    .search-box {
+        order: 3;
+        flex-basis: 100%;
+        max-width: none;
+    }
+
+    .hero-art {
+        font-size: 100px;
+    }
+
+    .products {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media(max-width: 600px) {
+    .navbar {
+        gap: 20px;
+    }
+
+    .hero {
+        padding: 38px 25px;
+        min-height: 330px;
+    }
+
+    .hero-art {
+        display: none;
+    }
+
+    .features {
+        grid-template-columns: 1fr;
+    }
+
+    .categories {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .promo-icon {
+        font-size: 45px;
+    }
+
+    .footer-content {
+        grid-template-columns: 1fr;
+    }
+
+    .section {
+        padding: 20px;
+    }
+
+    .search-section {
+        padding: 17px;
+    }
+}
+
+@media(max-width: 380px) {
+    .products {
+        grid-template-columns: 1fr;
+    }
+
+    .header-links {
+        font-size: 12px;
+    }
+}
+</style>
 </head>
 
 <body>
 
-    <!-- Navbar -->
+<!-- HEADER -->
+<header class="header">
 
-    <nav class="navbar">
+    <a href="index.php" class="logo">
+        🛒 Shop<span>Kart</span>
+    </a>
 
-        <div class="logo">
-            🛒 ShopKart
-        </div>
+    <form class="search-box" method="GET" action="index.php">
+        <input
+            type="text"
+            name="q"
+            placeholder="Search mobiles, laptops, fashion..."
+            value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>"
+        >
+        <button type="submit">Search 🔍</button>
+    </form>
 
-        <div class="nav-links">
-
-            <a href="index.php">Home</a>
-
-            <a href="products.php">Products</a>
-
-            <a href="cart.php">Cart 🛒</a>
-
-            <a href="login.php">Login 👤</a>
-
-            <a href="logout.php">Logout 🚪</a>
-
-        </div>
-
-    </nav>
-
-
-    <!-- Search -->
-
-    <div class="search-box">
-
-        <form method="GET" action="index.php">
-
-            <input
-                type="text"
-                name="q"
-                value="<?= htmlspecialchars($search) ?>"
-                placeholder="Search products..."
-                required
-            >
-
-            <button type="submit">
-                🔍 Search
-            </button>
-
-        </form>
-
+    <div class="header-links">
+        <a href="login.php">👤 Login</a>
+        <a href="cart.php" class="cart-link">
+            🛒 Cart (<?= $cartCount ?>)
+        </a>
     </div>
 
+</header>
 
-    <!-- Hero -->
+<!-- NAVIGATION -->
+<nav class="navbar">
+    <a href="index.php">Home</a>
+    <a href="products.php">All Products</a>
+    <a href="#categories">Categories</a>
+    <a href="login.php">My Account</a>
+    <a href="cart.php">My Cart</a>
+</nav>
 
-    <section class="hero">
+<!-- CATEGORY STRIP -->
+<div class="category-nav">
+    <?php foreach ($categories as $category): ?>
+        <a href="category.php?cat=<?= urlencode($category[0]) ?>">
+            <?= htmlspecialchars($category[0]) ?>
+        </a>
+    <?php endforeach; ?>
+</div>
+
+<?php if (isset($_GET['added'])): ?>
+    <div class="notice">
+        ✓ Product successfully added to your cart!
+    </div>
+<?php endif; ?>
+
+<?php if ($search === ''): ?>
+
+<!-- HOME PAGE - NO PRODUCT CARDS -->
+
+<section class="hero">
+
+    <div class="hero-content">
+
+        <span class="hero-tag">WELCOME TO SHOPKART</span>
 
         <h1>
-            Welcome to ShopKart
+            Your Shopping World,
+            <span>One Destination.</span>
         </h1>
 
         <p>
+            Discover a world of choices with ShopKart.
+            From the latest mobiles and electronics to fashion,
+            lifestyle and everyday essentials.
             Everything you need, all in one place.
         </p>
 
-        <a href="#categories" class="shop-btn">
-            Shop Now
-        </a>
-
-    </section>
-
-
-    <!-- Categories -->
-
-    <section class="section" id="categories">
-
-        <h2>
-            Shop by Category
-        </h2>
-
-        <div class="categories">
-
-            <a href="category.php?cat=Mobiles" class="category">
-                📱 Mobiles
+        <div class="hero-buttons">
+            <a href="products.php" class="shop-btn">
+                Explore Shopping →
             </a>
 
-            <a href="category.php?cat=Laptops" class="category">
-                💻 Laptops & Computers
+            <a href="#categories" class="category-btn">
+                Browse Categories
             </a>
-
-            <a href="category.php?cat=Audio" class="category">
-                🎧 Audio
-            </a>
-
-            <a href="category.php?cat=Smart Watches" class="category">
-                ⌚ Smart Watches
-            </a>
-
-            <a href="category.php?cat=Mens Fashion" class="category">
-                👕 Men's Fashion
-            </a>
-
-            <a href="category.php?cat=Womens Fashion" class="category">
-                👗 Women's Fashion
-            </a>
-
-            <a href="category.php?cat=Shoes" class="category">
-                👟 Shoes
-            </a>
-
-            <a href="category.php?cat=Bags" class="category">
-                🎒 Bags
-            </a>
-
-            <a href="category.php?cat=Beauty" class="category">
-                💄 Beauty
-            </a>
-
-            <a href="category.php?cat=Home Kitchen" class="category">
-                🏠 Home & Kitchen
-            </a>
-
-            <a href="category.php?cat=Toys Games" class="category">
-                🧸 Toys & Games
-            </a>
-
-            <a href="category.php?cat=Books Stationery" class="category">
-                📚 Books & Stationery
-            </a>
-
-            <a href="category.php?cat=Sports Fitness" class="category">
-                🏋️ Sports & Fitness
-            </a>
-
-            <a href="category.php?cat=Accessories" class="category">
-                🔌 Accessories
-            </a>
-
-            <a href="category.php?cat=Gaming" class="category">
-                🎮 Gaming
-            </a>
-
-            <a href="category.php?cat=Automotive" class="category">
-                🚗 Automotive
-            </a>
-
         </div>
 
-    </section>
+    </div>
 
+    <div class="hero-art">
+        🛍️
+    </div>
 
-    <!-- Search Results -->
+</section>
 
-    <?php if ($search !== ''): ?>
+<!-- FEATURES -->
+<section class="features">
 
-        <section class="section">
+    <div class="feature">
+        <div class="feature-icon">🔍</div>
+        <div>
+            <h3>Smart Product Search</h3>
+            <p>Find your favourite products easily.</p>
+        </div>
+    </div>
 
-            <h2>
-                Search Results for "<?= htmlspecialchars($search) ?>"
-            </h2>
+    <div class="feature">
+        <div class="feature-icon">🛒</div>
+        <div>
+            <h3>Easy Shopping Cart</h3>
+            <p>Add and manage your selected items.</p>
+        </div>
+    </div>
 
-            <?php if (!empty($searchResults)): ?>
+    <div class="feature">
+        <div class="feature-icon">📦</div>
+        <div>
+            <h3>Simple Ordering</h3>
+            <p>View your order details after checkout.</p>
+        </div>
+    </div>
 
-                <div class="products">
+</section>
 
-                    <?php foreach ($searchResults as $product): ?>
+<!-- CATEGORIES -->
+<section class="section" id="categories">
 
-                        <div class="product">
+    <div class="section-heading">
+        <h2>Explore ShopKart Categories</h2>
+        <p>Choose a category and discover what you are looking for.</p>
+    </div>
 
-                            <div class="product-img">
-                                <?= $product['icon'] ?>
-                            </div>
+    <div class="categories">
 
-                            <h3>
-                                <?= htmlspecialchars($product['name']) ?>
-                            </h3>
+        <?php foreach ($categories as $category): ?>
 
-                            <p class="price">
-                                ₹<?= number_format($product['price']) ?>
-                            </p>
+            <a
+                href="category.php?cat=<?= urlencode($category[0]) ?>"
+                class="category-card"
+            >
+                <span class="category-icon">
+                    <?= $category[1] ?>
+                </span>
 
-                            <form method="POST">
+                <span class="category-name">
+                    <?= htmlspecialchars($category[0]) ?>
+                </span>
+            </a>
 
-                                <input
-                                    type="hidden"
-                                    name="name"
-                                    value="<?= htmlspecialchars($product['name']) ?>"
+        <?php endforeach; ?>
+
+    </div>
+
+</section>
+
+<!-- PROMO -->
+<section class="promo">
+
+    <div>
+        <h2>Everything You Need, In One Place!</h2>
+
+        <p>
+            Explore our complete collection and find products
+            across your favourite shopping categories.
+        </p>
+    </div>
+
+    <div class="promo-icon">🎁</div>
+
+</section>
+
+<?php else: ?>
+
+<!-- SEARCH RESULTS ONLY -->
+
+<section class="search-section">
+
+    <div class="search-heading">
+
+        <h2>Search Results</h2>
+
+        <p>
+            Showing products for:
+            <strong><?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?></strong>
+        </p>
+
+        <a href="index.php" class="clear-search">
+            ← Back to Home
+        </a>
+
+    </div>
+
+    <?php if (!empty($searchResults)): ?>
+
+        <div class="products">
+
+            <?php foreach ($searchResults as $product): ?>
+
+                <?php
+                $productIndex = $productIndexes[$product['name']] ?? 0;
+
+                $image = getProductImage(
+                    $product['category'],
+                    $productIndex,
+                    $product['name']
+                );
+                ?>
+
+                <div class="product">
+
+                    <a href="product_details.php?name=<?= urlencode($product['name']) ?>">
+
+                        <div class="product-img">
+
+                            <?php if (!empty($image)): ?>
+
+                                <img
+                                    src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
+                                    alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    loading="lazy"
+                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
                                 >
 
-                                <input
-                                    type="hidden"
-                                    name="price"
-                                    value="<?= $product['price'] ?>"
-                                >
+                                <span style="display:none;">
+                                    <?= htmlspecialchars($product['icon'] ?? '🛍️') ?>
+                                </span>
 
-                                <button
-                                    type="submit"
-                                    class="cart-btn"
-                                >
-                                    Add to Cart
-                                </button>
+                            <?php else: ?>
 
-                            </form>
+                                <span>
+                                    <?= htmlspecialchars($product['icon'] ?? '🛍️') ?>
+                                </span>
+
+                            <?php endif; ?>
 
                         </div>
 
-                    <?php endforeach; ?>
+                    </a>
+
+                    <span class="product-category">
+                        <?= htmlspecialchars($product['category']) ?>
+                    </span>
+
+                    <h3>
+                        <a href="product_details.php?name=<?= urlencode($product['name']) ?>">
+                            <?= htmlspecialchars($product['name']) ?>
+                        </a>
+                    </h3>
+
+                    <p class="price">
+                        ₹<?= number_format((float)$product['price']) ?>
+                    </p>
+
+                    <form method="POST">
+
+                        <input
+                            type="hidden"
+                            name="product_name"
+                            value="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>"
+                        >
+
+                        <button
+                            type="submit"
+                            name="add_to_cart"
+                            value="1"
+                            class="cart-btn"
+                        >
+                            Add to Cart +
+                        </button>
+
+                    </form>
 
                 </div>
 
-                <a href="index.php" class="clear-search">
-                    ✖ Clear Search
-                </a>
+            <?php endforeach; ?>
 
-            <?php else: ?>
-
-                <div class="no-result">
-
-                    ❌ No product found.
-
-                </div>
-
-                <a href="index.php" class="clear-search">
-                    ← Back to Home
-                </a>
-
-            <?php endif; ?>
-
-        </section>
+        </div>
 
     <?php else: ?>
 
-
-        <!-- Featured Products -->
-
-        <section class="section">
-
-            <h2>
-                Featured Products
-            </h2>
-
-            <div class="products">
-
-
-                <!-- Smartphone -->
-
-                <div class="product">
-
-                    <div class="product-img">
-                        📱
-                    </div>
-
-                    <h3>
-                        Smartphone
-                    </h3>
-
-                    <p class="price">
-                        ₹19,999
-                    </p>
-
-                    <form method="POST">
-
-                        <input
-                            type="hidden"
-                            name="name"
-                            value="Smartphone"
-                        >
-
-                        <input
-                            type="hidden"
-                            name="price"
-                            value="19999"
-                        >
-
-                        <button
-                            type="submit"
-                            class="cart-btn"
-                        >
-                            Add to Cart
-                        </button>
-
-                    </form>
-
-                </div>
-
-
-                <!-- Laptop -->
-
-                <div class="product">
-
-                    <div class="product-img">
-                        💻
-                    </div>
-
-                    <h3>
-                        Laptop
-                    </h3>
-
-                    <p class="price">
-                        ₹49,999
-                    </p>
-
-                    <form method="POST">
-
-                        <input
-                            type="hidden"
-                            name="name"
-                            value="Laptop"
-                        >
-
-                        <input
-                            type="hidden"
-                            name="price"
-                            value="49999"
-                        >
-
-                        <button
-                            type="submit"
-                            class="cart-btn"
-                        >
-                            Add to Cart
-                        </button>
-
-                    </form>
-
-                </div>
-
-
-                <!-- Headphones -->
-
-                <div class="product">
-
-                    <div class="product-img">
-                        🎧
-                    </div>
-
-                    <h3>
-                        Headphones
-                    </h3>
-
-                    <p class="price">
-                        ₹1,999
-                    </p>
-
-                    <form method="POST">
-
-                        <input
-                            type="hidden"
-                            name="name"
-                            value="Headphones"
-                        >
-
-                        <input
-                            type="hidden"
-                            name="price"
-                            value="1999"
-                        >
-
-                        <button
-                            type="submit"
-                            class="cart-btn"
-                        >
-                            Add to Cart
-                        </button>
-
-                    </form>
-
-                </div>
-
-
-                <!-- Smart Watch -->
-
-                <div class="product">
-
-                    <div class="product-img">
-                        ⌚
-                    </div>
-
-                    <h3>
-                        Smart Watch
-                    </h3>
-
-                    <p class="price">
-                        ₹2,999
-                    </p>
-
-                    <form method="POST">
-
-                        <input
-                            type="hidden"
-                            name="name"
-                            value="Smart Watch"
-                        >
-
-                        <input
-                            type="hidden"
-                            name="price"
-                            value="2999"
-                        >
-
-                        <button
-                            type="submit"
-                            class="cart-btn"
-                        >
-                            Add to Cart
-                        </button>
-
-                    </form>
-
-                </div>
-
-            </div>
-
-        </section>
+        <div class="no-result">
+            <span>🔎</span>
+            <h3>No Products Found!</h3>
+            <p>Try another product name or category.</p>
+        </div>
 
     <?php endif; ?>
 
+</section>
 
-    <!-- Footer -->
+<?php endif; ?>
 
-    <footer>
+<!-- FOOTER -->
+<footer>
 
-        <p>
-            © 2026 ShopKart | All Rights Reserved
-        </p>
+    <div class="footer-content">
 
-    </footer>
+        <div>
+            <h3>🛒 ShopKart</h3>
+            <p>
+                Your shopping destination for mobiles,
+                electronics, fashion and much more.
+            </p>
+        </div>
+
+        <div>
+            <h3>Quick Links</h3>
+            <p><a href="index.php">Home</a></p>
+            <p><a href="products.php">All Products</a></p>
+            <p><a href="cart.php">Shopping Cart</a></p>
+            <p><a href="login.php">Login</a></p>
+        </div>
+
+        <div>
+            <h3>Popular Categories</h3>
+            <p><a href="category.php?cat=Mobiles">Mobiles</a></p>
+            <p><a href="category.php?cat=Laptops">Laptops</a></p>
+            <p><a href="category.php?cat=Audio">Audio</a></p>
+            <p><a href="category.php?cat=Shoes">Shoes</a></p>
+        </div>
+
+    </div>
+
+    <div class="copyright">
+        <p>© <?= date('Y') ?> ShopKart. All Rights Reserved.</p>
+    </div>
+
+</footer>
 
 </body>
-
 </html>
